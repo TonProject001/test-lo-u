@@ -39,6 +39,7 @@
   let markers = []; // สร้างตัวแปรสำหรับเก็บมาร์กเกอร์
   let userMarker; // มาร์กเกอร์สำหรับตำแหน่งปัจจุบันของผู้ใช้
   let routingControl; // ควบคุมเส้นทาง
+  let loadingPopup; // Popup สำหรับแสดงข้อความ "กำลังดึงตำแหน่ง"
 
   // ฟังก์ชันอัปเดตหมุดบนแผนที่
   function updateMarkers(data) {
@@ -89,15 +90,32 @@
   // ฟังก์ชันดึงตำแหน่งปัจจุบันของผู้ใช้
   function getUserLocation() {
     if (navigator.geolocation) {
+      // แสดง popup "กำลังดึงตำแหน่งของท่าน"
+      loadingPopup = L.popup()
+        .setLatLng(map.getCenter()) // วางตรงกลางแผนที่
+        .setContent("กำลังดึงตำแหน่งของท่าน...")
+        .openOn(map);
+
       navigator.geolocation.getCurrentPosition(
         position => {
           const { latitude, longitude } = position.coords;
 
-          // เพิ่มมาร์กเกอร์ตำแหน่งปัจจุบัน
+          // ลบ popup หลังจากดึงตำแหน่งสำเร็จ
+          map.closePopup(loadingPopup);
+
+          // เพิ่มมาร์กเกอร์ตำแหน่งปัจจุบัน (สีเขียว)
           if (userMarker) {
             map.removeLayer(userMarker);
           }
-          userMarker = L.marker([latitude, longitude]).addTo(map);
+          const greenIcon = L.icon({
+            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+            iconSize: [25, 41],
+            iconAnchor: [12, 41],
+            popupAnchor: [1, -34],
+            shadowSize: [41, 41]
+          });
+          userMarker = L.marker([latitude, longitude], { icon: greenIcon }).addTo(map);
           userMarker.bindPopup("ตำแหน่งของคุณ").openPopup();
 
           // เซ็ตแผนที่ให้โฟกัสที่ตำแหน่งปัจจุบัน
@@ -105,6 +123,7 @@
         },
         error => {
           console.error('Error getting user location:', error);
+          map.closePopup(loadingPopup); // ลบ popup หากเกิดข้อผิดพลาด
           alert('ไม่สามารถดึงตำแหน่งของคุณได้ กรุณาตรวจสอบการอนุญาต');
         }
       );
