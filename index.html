@@ -22,6 +22,9 @@
       border-radius: 5px;
       box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
       z-index: 1000;
+      font-family: Arial, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
     }
     @keyframes blink {
       0% { opacity: 1; }
@@ -37,6 +40,15 @@
       margin: 10px;
       border-radius: 5px;
       box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+      max-height: 300px;
+      overflow-y: auto;
+      font-family: Arial, sans-serif;
+      font-size: 12px;
+    }
+    .small-text {
+      font-size: 12px;
+      color: #666;
+      margin-top: 5px;
     }
   </style>
 </head>
@@ -56,11 +68,15 @@
   let loadingPopup;
   let userCircle;
 
-  function calculateTravelTime(distance) {
-    const averageSpeed = 60;
-    const timeInHours = distance / averageSpeed;
-    const timeInMinutes = Math.round(timeInHours * 60);
-    return timeInMinutes;
+  function getCurrentTimeFactor() {
+    const now = new Date();
+    const hour = now.getHours();
+    
+    // ช่วงเวลาเร่งด่วน
+    if ((hour >= 7 && hour <= 9) || (hour >= 16 && hour <= 19)) {
+      return 1.5; // เพิ่มเวลา 50% ในช่วงเวลาเร่งด่วน
+    }
+    return 1.3; // เพิ่มเวลา 30% ในเวลาปกติ
   }
 
   function createRoutingControl(from, to) {
@@ -88,6 +104,36 @@
       createMarker: function() { return null; }
     }).addTo(map);
 
+    routingControl.on('routesfound', function(e) {
+      const routes = e.routes;
+      const route = routes[0];
+
+      const distance = route.summary.totalDistance / 1000;
+      let estimatedMinutes = Math.round(route.summary.totalTime / 60);
+
+      // คำนวณเวลาเพิ่มเติมตามช่วงเวลา
+      const trafficFactor = getCurrentTimeFactor();
+      const stopLightFactor = Math.floor(distance / 2);
+      
+      estimatedMinutes = Math.round(estimatedMinutes * trafficFactor) + stopLightFactor;
+
+      // แปลงเป็นชั่วโมงและนาทีถ้าเกิน 60 นาที
+      let timeDisplay;
+      if (estimatedMinutes >= 60) {
+        const hours = Math.floor(estimatedMinutes / 60);
+        const minutes = estimatedMinutes % 60;
+        timeDisplay = `${hours} ชั่วโมง ${minutes} นาที`;
+      } else {
+        timeDisplay = `${estimatedMinutes} นาที`;
+      }
+
+      document.getElementById('distanceInfo').innerHTML = 
+        `ระยะทาง: ${distance.toFixed(1)} กิโลเมตร<br>` +
+        `เวลาเดินทางโดยประมาณ: ${timeDisplay}<br>` +
+        `<div class="small-text">*รวมเวลาติดไฟแดงและการจราจรตามช่วงเวลา</div>`;
+      document.getElementById('distanceInfo').style.display = 'block';
+    });
+
     return routingControl;
   }
 
@@ -105,20 +151,10 @@
           const userLatLng = userMarker.getLatLng();
           const markerLatLng = marker.getLatLng();
 
-          const distance = userLatLng.distanceTo(markerLatLng) / 1000;
-          const estimatedTime = calculateTravelTime(distance);
-          
-          document.getElementById('distanceInfo').innerHTML = 
-            `ระยะทาง: ${distance.toFixed(2)} กิโลเมตร<br>` +
-            `เวลาเดินทางโดยประมาณ: ${estimatedTime} นาที`;
-          document.getElementById('distanceInfo').style.display = 'block';
-
-          // สร้างเส้นทางใหม่
           createRoutingControl(userLatLng, markerLatLng);
 
-          // ปรับ zoom เพื่อให้เห็นทั้งเส้นทาง
-          const bounds = L.latLngBounds([userLatLng, markerLatLng]);
-          map.fitBounds(bounds, { padding: [50, 50] });
+          const bounds = L.latLngBounds([userLatLng, markerLatLng]).pad(0.2);
+          map.fitBounds(bounds);
         }
       });
     });
@@ -159,6 +195,7 @@
             popupAnchor: [1, -34],
             shadowSize: [41, 41]
           });
+          
           userMarker = L.marker([latitude, longitude], { icon: greenIcon }).addTo(map);
           userMarker.bindPopup("ตำแหน่งของคุณ").openPopup();
 
